@@ -95,3 +95,82 @@ img {
 /**
  * YOUR CODE HERE
  */
+
+p {
+    text-indent: 0;
+    margin: 0;
+}
+
+p + p {
+    text-indent: 0;
+    margin: 0;
+}
+
+.container{
+    font-size: 0;
+    font-family: Helvetica,Arial,sans-serif;
+
+    & > * {
+        font-size: medium
+    }
+    
+    div.track-view{
+
+        i {
+            font-size: 128px;
+            display: inline-block;
+        }
+
+        i.play::after {
+            content: 'play_circle_outline';
+            
+        }
+
+        i.pause::after{
+            content: 'pause_circle_outline';
+        }
+
+
+        div.track-data {
+            display: inline-block;
+            vertical-align: top;
+            max-width: 600px;
+
+
+            p.artist {
+                margin: 0 0 .5rem 0;
+                opacity: .5;
+                font-size: 14px;
+            }
+
+            p.title {
+                margin: .5rem 0;
+                font-size: 16px;
+            }
+
+            div.bar {
+                height: 5px;
+                width: 400px;
+                border-radius: 4px;
+                background-color: #CCC;
+                border: 1px solid cadetblue;
+                position: relative;
+
+                div.ball {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 100%;
+                    background-color: cadetblue;
+                    position: absolute;
+                    left: 0px;
+                    margin: 0;
+                    top: 2px;
+                    transform: translateY(-50%);
+                }
+            }
+
+        }
+
+    }
+}
+
