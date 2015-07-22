@@ -11,112 +11,144 @@ var clientId = '5b0d197fa9c0a7e2f9ccdf975be97e8a',
 	endUserAuthorization = 'https://soundcloud.com/connect',
 	token = 'https://api.soundcloud.com/oauth2/token'
 
-console.log('loaded');
+console.log('loaded2');
 
 //IIFE
-(function(){
-
-	var tickBall = function(player,ball,barWidth){
-		var newLeft = (player._currentPosition * barWidth) / player._duration
-		ball.style.left = newLeft + 'px'
-		// if (player._playRequested){
-			
-		// 	// setTimeout(tickBall,500,player,ball,barWidth)
-		// }
-	}
-
-	var advanceBall = function(sound,trackView){
-		var player = sound._player,
-			ball = trackView.querySelector('.ball'),
-			bar = trackView.querySelector('.bar'),
-			style = window.getComputedStyle(bar),
-			barWidth = style.getPropertyValue('width')
-		barWidth = barWidth.split('').splice(0,barWidth.length-2).join('') //remove px
-		setTimeout(tickBall,100,player,ball,barWidth)
-	}
 
 
-	var trackTemplate = function(trackData){
-		var html = `    	
-			<div class="track-view">
-    			<i class="play material-icons"></i>
-    			<div class="track-data">
-    				<p class="title">${trackData.permalink}</p>
-    				<p class="artist">${trackData.title}</p>
-    				<div class="bar">
-    					<div class="ball"></div>
-    				</div>
-    			</div>
-	    	</div>`
-		console.log(trackData)
-		return html
-	}
+function ballPosToTime(player,ballLeft,barWidth){
+	console.log(player._duration)
+	console.log(ballLeft)
+	console.log(barWidth)
+	var newTime = (ballLeft * player._duration) / barWidth
+	console.log('new time' + newTime)
+	return newTime
 
-	console.log(this)
+}
 
-	var playTrack = function(sound) {
-		window.sound = sound
-		var trackView = document.querySelector('div.track-view')
-		window.trackView = trackView
-		var playButton = trackView.querySelector('.play')
-		var player = sound._player,
-			html5audio = sound._player._html5Audio,
-			ball = trackView.querySelector('.ball'),
-			bar = trackView.querySelector('.bar'),
-			style = window.getComputedStyle(bar),
-			barWidth = style.getPropertyValue('width'),
-		barWidth = barWidth.split('').splice(0,barWidth.length-2).join('') //remove px
-		console.log(this)
-		window.player = player
-		
-		var tickBall = function(player,ball,barWidth){
-			// var newLeft = (player._currentPosition * barWidth) / player._duration
-			var newLeft = (player.currentTime * barWidth) / player.duration
-			ball.style.left = newLeft + 'px'
+var trackView,trackData,playButton,ball,bar,ballStyle,ballWidth,barWidth,barLeft
 
-			// if (player._playRequested){
-				
-			// 	// setTimeout(tickBall,500,player,ball,barWidth)
-			// }
-			}
+function initPlay(track) {
+	// sets up a player view and loads the stream
 
-		playButton.addEventListener('click',
-			() => {
-				console.log(playButton.className)
-				if (playButton.className == "play material-icons"){
-					console.log('playing')
-					playButton.className = "pause material-icons"
-					html5audio.onprogress = function()  {tickBall(this,ball,barWidth)}
-					sound.play()
-					// advanceBall(sound,trackView)
-				}
-				else if (playButton.className == "pause material-icons"){
-					console.log('pausing')
-					playButton.className = "play material-icons"
-					sound.pause()
-				}
-			})
-		}
+	// set up view 
+	var container = document.querySelector('.container')
+	container.innerHTML = trackTemplate(track) //set track view. don't move
+	// setup pointers to DOM
+	trackView = document.querySelector('div.track-view')
+	trackData = trackView.querySelector('div.track-data')
+	playButton = trackView.querySelector('.play')
+	ball = trackView.querySelector('.ball')
+	bar = trackView.querySelector('.bar')
+	ballStyle = window.getComputedStyle(ball)
+	ballWidth = stripPx(ballStyle.getPropertyValue('width'))
+	barWidth = stripPx(window.getComputedStyle(bar).getPropertyValue('width'))
+	barLeft = bar.getBoundingClientRect().left
 
-	var streamTrack = function(trackId){
-		SC.stream(`/tracks/${trackId}`, 
-			{onfinish: function() {console.log('finished')}},function(sound){playTrack(sound)}
-			)
-		}
+	// load stream
+	SC.stream(`/tracks/${track.id}`, 
+		{onfinish: () => console.log('finished')},
+		(sound) => playTrack(sound)
+	)
+}
 
-	SC.initialize({
-	    client_id: clientId,
-	})
+function customPause(sound){
+	console.log('pausing')
+	playButton.className = "play material-icons"
+	sound.pause()
+}
 
-	var trackId = 77777
-	SC.get(`/tracks/${trackId}/`, (track) => {
-		var container = document.querySelector('.container')
-		container.innerHTML = trackTemplate(track)
-		var id = track.id
-		streamTrack(id)
-	})
+function dragBall(sound){
+	// moves the ball according to cursor position
+	customPause(sound)
+	trackData.addEventListener('mousemove',followCursor)
+	trackData.addEventListener('mouseup',unDrag)
+}
 
-}())
+function followCursor(e){
+	var mouseWithinDiv = e.clientX - barLeft
+	ball.style.left = mouseWithinDiv - ballWidth/2 + 'px' // position within div is div's left border minus the cursor's position
+}
+
+function unDrag(sound, html5audio){
+	// stop following cursor, resume playing track
+	trackData.removeEventListener('mousemove',followCursor)
+	var ballLeft = stripPx(ballStyle.getPropertyValue('left'))
+	window.sound = sound
+	sound._player.seek(ballPosToTime(sound._player,ballLeft,barWidth))
+	console.log('drag-playing')
+	customPlay(sound, html5audio)
+	trackData.removeEventListener('mouseup',unDrag)
+}
+
+function customPlay(sound, html5audio){
+	console.log('playing')
+	setTimeout(() => playButton.className = "pause material-icons",500,playButton)
+	html5audio.onprogress = function(){tickBall(sound._player,ball,barWidth)}
+	sound.play()
+}
+
+function playListener(sound, html5audio){
+	// defines onclick functionality for the playButton
+
+	if (playButton.className == "play material-icons") customPlay(sound, html5audio)
+	else if (playButton.className == "pause material-icons") customPause(sound)
+}
+
+function playTrack(sound) {
+	// adds event listeners for tracking ball and play button
+
+	// get DOM objects and html5player
+	var html5audio = sound._player._html5Audio
+	
+	// add the intended event listeners
+	ball.addEventListener('mousedown',dragBall)
+	playButton.addEventListener('click', playListener.bind(null, sound, html5audio))
+}
+
+function stripPx(string){
+	return string.split('').splice(0,string.length-2).join('')
+}
+
+function tickBall(player,ball,barWidth){
+	// moves the ball along one step
+	var newLeft = timeToBallPos(player,barWidth)
+	console.log(newLeft)
+	ball.style.left = newLeft + 'px'
+}
+
+function timeToBallPos(player,barWidth){
+	return (player._currentPosition * barWidth) / player._duration
+}
+
+function trackTemplate(trackData){
+	// sets template for track view
+
+	var html = `    	
+		<div class="track-view">
+			<i class="play material-icons"></i>
+			<div class="track-data">
+				<p class="title">${trackData.permalink}</p>
+				<p class="artist">${trackData.title}</p>
+				<div class="bar">
+					<div class="ball"></div>
+				</div>
+			</div>
+    	</div>`
+
+	console.log(trackData)
+	return html
+}
+
+
+SC.initialize({
+    client_id: clientId,
+})
+
+var trackId = 77777
+
+SC.get(`/tracks/${trackId}/`, (track) => initPlay(track))
+
 
 
 // just Node?
