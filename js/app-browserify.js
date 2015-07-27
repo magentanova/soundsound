@@ -6,148 +6,125 @@ require("babel/polyfill")
 
 var Promise = require('es6-promise').Promise
 
+var Backbone = require('Backbone')
+
+var React = require('react')
+
 var clientId = '5b0d197fa9c0a7e2f9ccdf975be97e8a',
 	secret = '85f60ef57548dd8eff54f32023da205e',
 	endUserAuthorization = 'https://soundcloud.com/connect',
 	token = 'https://api.soundcloud.com/oauth2/token'
 
-console.log('loaded2');
+console.log('loaded');
 
 //IIFE
 
 
-function ballPosToTime(player,ballLeft,barWidth){
-	console.log(player._duration)
-	console.log(ballLeft)
-	console.log(barWidth)
-	var newTime = (ballLeft * player._duration) / barWidth
-	console.log('new time' + newTime)
-	return newTime
 
-}
 
-var trackView,trackData,playButton,ball,bar,ballStyle,ballWidth,barWidth,barLeft
+var Track = Backbone.Model.extend({
 
-function initPlay(track) {
-	// sets up a player view and loads the stream
+	defaults: {
+		permalink: "nobody",
+		title: "nothing"
+	},
 
-	// set up view 
-	var container = document.querySelector('.container')
-	container.innerHTML = trackTemplate(track) //set track view. don't move
-	// setup pointers to DOM
-	trackView = document.querySelector('div.track-view')
-	trackData = trackView.querySelector('div.track-data')
-	playButton = trackView.querySelector('.play')
-	ball = trackView.querySelector('.ball')
-	bar = trackView.querySelector('.bar')
-	ballStyle = window.getComputedStyle(ball)
-	ballWidth = stripPx(ballStyle.getPropertyValue('width'))
-	barWidth = stripPx(window.getComputedStyle(bar).getPropertyValue('width'))
-	barLeft = bar.getBoundingClientRect().left
+	initialize: function(trackId) {
+		this.trackId = trackId
+		console.log(trackId)
+		this.url = `https://api.soundcloud.com/tracks/${this.trackId}?client_id=${clientId}`
+	},
 
-	// load stream
-	SC.stream(`/tracks/${track.id}`, 
-		{onfinish: () => console.log('finished')},
-		(sound) => playTrack(sound)
-	)
-}
+	parse: function(results) {
+		console.log('lockngajfd')
+		console.log(results)
+		return results
+	}
+})
 
-function customPause(sound){
-	console.log('pausing')
-	playButton.className = "play material-icons"
-	sound.pause()
-}
+class TrackView extends React.Component {
 
-function dragBall(sound){
-	// moves the ball according to cursor position
-	customPause(sound)
-	trackData.addEventListener('mousemove',followCursor)
-	trackData.addEventListener('mouseup',unDrag)
-}
+	constructor(props) {
+		super(props)
+		console.log(this)
+		this.state = {playing: "notready"}
+		this.props.trackData.on('sync', () => this.forceUpdate())
+		console.log(this.props.trackData)
+	}
 
-function followCursor(e){
-	var mouseWithinDiv = e.clientX - barLeft
-	ball.style.left = mouseWithinDiv - ballWidth/2 + 'px' // position within div is div's left border minus the cursor's position
-}
+	_dragBall(e) {
+		console.log(this)
+		window.view = this
+		trackData.addEventListener('mousemove',followCursor)
+		trackData.addEventListener('mouseup',unDrag.bind(null,sound))
+	}
 
-function unDrag(sound, html5audio){
-	// stop following cursor, resume playing track
-	trackData.removeEventListener('mousemove',followCursor)
-	var ballLeft = stripPx(ballStyle.getPropertyValue('left'))
-	window.sound = sound
-	sound._player.seek(ballPosToTime(sound._player,ballLeft,barWidth))
-	console.log('drag-playing')
-	customPlay(sound, html5audio)
-	trackData.removeEventListener('mouseup',unDrag)
-}
+	_followCursor(){
+		var mouseWithinDiv = e.clientX - barLeft
+		ball.style.left = mouseWithinDiv - ballWidth/2 + 'px' // position within div is div's left border minus the cursor's position
+	}	
 
-function customPlay(sound, html5audio){
-	console.log('playing')
-	setTimeout(() => playButton.className = "pause material-icons",500,playButton)
-	html5audio.onprogress = function(){tickBall(sound._player,ball,barWidth)}
-	sound.play()
-}
+ 	_playOrPause() {
 
-function playListener(sound, html5audio){
-	// defines onclick functionality for the playButton
+ 		console.log('invoked and playing with state' + this.state.playing)
+ 		if (this.state.playing == "notready"){
+ 			this.setState({playing:"playing"})
+ 			SC.stream(`/tracks/${this.props.trackData.trackId}`,
+ 				(sound) => {
+ 					this.state.sound = sound
+ 					this.state.sound.play()
+ 				})
+ 			return
+ 		}
+ 		
+ 		else if (this.state.playing == "notplaying"){ 
+ 			console.log('playing')
+ 			this.state.sound.play()
+ 			this.setState({playing:"playing"})
+ 		}
 
-	if (playButton.className == "play material-icons") customPlay(sound, html5audio)
-	else if (playButton.className == "pause material-icons") customPause(sound)
-}
+ 		else if (this.state.playing == "playing"){
+ 			console.log('pausing')
+ 			this.state.sound.pause()
+ 			this.setState({playing:"notplaying"})
+ 		}
+		
+	}
 
-function playTrack(sound) {
-	// adds event listeners for tracking ball and play button
+	render() {
 
-	// get DOM objects and html5player
-	var html5audio = sound._player._html5Audio
-	
-	// add the intended event listeners
-	ball.addEventListener('mousedown',dragBall)
-	playButton.addEventListener('click', playListener.bind(null, sound, html5audio))
-}
-
-function stripPx(string){
-	return string.split('').splice(0,string.length-2).join('')
-}
-
-function tickBall(player,ball,barWidth){
-	// moves the ball along one step
-	var newLeft = timeToBallPos(player,barWidth)
-	console.log(newLeft)
-	ball.style.left = newLeft + 'px'
-}
-
-function timeToBallPos(player,barWidth){
-	return (player._currentPosition * barWidth) / player._duration
-}
-
-function trackTemplate(trackData){
-	// sets template for track view
-
-	var html = `    	
-		<div class="track-view">
-			<i class="play material-icons"></i>
-			<div class="track-data">
-				<p class="title">${trackData.permalink}</p>
-				<p class="artist">${trackData.title}</p>
-				<div class="bar">
-					<div class="ball"></div>
+		var playState = this.state.playing == "playing" ? "pause": "play"
+		console.log(playState)
+		return (
+			<div className="track-view">
+				<i className={playState + " material-icons"} onClick={this._playOrPause.bind(this)}></i>
+				<div ref="track-data" className="track-data">
+					<p className="title">{this.props.trackData.attributes.permalink}</p>
+					<p className="artist">{this.props.trackData.attributes.title}</p>
+					<div ref="bar" className="bar">
+						<div ref="ball" className="ball" onMouseDown={(e) => this._dragBall.bind(this,e)()}></div>
+					</div>
 				</div>
-			</div>
-    	</div>`
-
-	console.log(trackData)
-	return html
+	    	</div>
+		)
+	}
 }
-
 
 SC.initialize({
     client_id: clientId,
 })
 
-var trackId = 77777
+var track = new Track(77777)
+React.render(<TrackView trackData={track}/>,document.querySelector('.container'))
+track.fetch()
+// SC.stream(`/tracks/${track.trackId}`,
+//  				(sound) => {
+//  					sound.play()
+//  				})
 
-SC.get(`/tracks/${trackId}/`, (track) => initPlay(track))
+
+
+// SC.get(`/tracks/${trackId}/`, (track) => initPlay(track))
 
 
 
